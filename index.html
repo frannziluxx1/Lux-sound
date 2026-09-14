@@ -8,6 +8,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="description" content="Lux Sound Lab — your local music, reimagined.">
 <title>Lux Sound Lab</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icon-180.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -76,7 +81,7 @@
      ======================================================= -->
 <div class="onboarding" id="onboarding">
   <div class="onb-card">
-    <div class="brand-mark-icon lg"><svg class="icon"><use href="#i-brand"/></svg></div>
+    <img class="brand-mark-icon lg" src="assets/icon-mark.png" alt="Lux Sound Lab">
     <h1>Lux Sound Lab</h1>
     <p class="onb-tagline">Your local music, reimagined.</p>
     <div class="onb-divider"></div>
@@ -98,7 +103,7 @@
 </div>
 
 <div class="scanning" id="scanning">
-  <div class="brand-mark-icon lg"><svg class="icon"><use href="#i-brand"/></svg></div>
+  <img class="brand-mark-icon lg" src="assets/icon-mark.png" alt="Lux Sound Lab">
   <div class="scan-ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="28"/><circle class="prog" id="scanRingProg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="176"/></svg></div>
   <div class="scan-status" id="scanStatus">Building your library…</div>
   <div class="scan-count" id="scanCount">Scanning your music…</div>
@@ -111,7 +116,7 @@
      ======================================================= -->
 <aside class="desktop-sidebar">
   <div class="brand-mark" style="padding:8px 10px 24px">
-    <div class="brand-mark-icon"><svg class="icon"><use href="#i-brand"/></svg></div>
+    <img class="brand-mark-icon" src="assets/icon-mark.png" alt="Lux Sound Lab">
     <div class="brand-mark-text"><strong>Lux Sound Lab</strong><span>Your local music, reimagined.</span></div>
   </div>
 
@@ -120,6 +125,7 @@
       <div class="nav-list">
         <button class="nav-item" data-route="/"><svg class="icon"><use href="#i-home"/></svg><span>Home</span></button>
         <button class="nav-item" data-route="/search"><svg class="icon"><use href="#i-search"/></svg><span>Search</span></button>
+        <button class="nav-item" data-route="/discover"><svg class="icon"><use href="#i-disc"/></svg><span>Discover</span></button>
         <button class="nav-item" data-route="/library"><svg class="icon"><use href="#i-library"/></svg><span>Library</span></button>
         <button class="nav-item" data-route="/playlists"><svg class="icon"><use href="#i-list"/></svg><span>Playlists</span></button>
         <button class="nav-item" data-route="/liked"><svg class="icon"><use href="#i-heart"/></svg><span>Liked Songs</span></button>
@@ -129,9 +135,12 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Your Library</div>
       <div class="nav-list">
-        <button class="nav-item" data-route="/recently-played"><svg class="icon"><use href="#i-clock"/></svg><span>Recently Played</span></button>
+        <button class="nav-item" data-route="/songs"><svg class="icon"><use href="#i-music"/></svg><span>Songs</span></button>
         <button class="nav-item" data-route="/albums"><svg class="icon"><use href="#i-disc"/></svg><span>Albums</span></button>
         <button class="nav-item" data-route="/artists"><svg class="icon"><use href="#i-user"/></svg><span>Artists</span></button>
+        <button class="nav-item" data-route="/genres"><svg class="icon"><use href="#i-list"/></svg><span>Genres</span></button>
+        <button class="nav-item" data-route="/recently-played"><svg class="icon"><use href="#i-clock"/></svg><span>Recently Played</span></button>
+        <button class="nav-item" data-route="/recently-added"><svg class="icon"><use href="#i-clock"/></svg><span>Recently Added</span></button>
         <button class="nav-item" data-route="/local-music"><svg class="icon"><use href="#i-file-audio"/></svg><span>Local Music</span></button>
       </div>
     </div>
@@ -139,6 +148,7 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Tools</div>
       <div class="nav-list">
+        <button class="nav-item" data-route="/import"><svg class="icon"><use href="#i-upload"/></svg><span>Import Music</span></button>
         <button class="nav-item" data-route="/queue"><svg class="icon"><use href="#i-queue"/></svg><span>Queue</span></button>
         <button class="nav-item" data-route="/equalizer"><svg class="icon"><use href="#i-sliders"/></svg><span>Equalizer</span></button>
       </div>
@@ -159,7 +169,7 @@
 <main class="main">
 
 <header class="top-header">
-  <div class="mobile-header-title"><strong>Lux Sound Lab</strong></div>
+  <div class="mobile-header-title"><img class="brand-mark-icon sm" src="assets/icon-mark.png" alt=""><strong>Lux Sound Lab</strong></div>
   <div class="header-actions">
     <button class="header-icon-btn" id="headerSearch" aria-label="Search"><svg class="icon"><use href="#i-search"/></svg></button>
     <button class="profile-button" id="headerProfile" aria-label="Profile"><div class="profile-avatar" id="headerAvatar"></div></button>
@@ -254,6 +264,24 @@
       <button class="tab-btn" data-sort="album">Album</button>
     </div>
     <div class="track-list" id="libraryList"></div>
+  </div>
+</section>
+
+<!-- ============ SONGS (dedicated) "/songs" ============ -->
+<section class="page" id="page-songs" data-page-route="/songs">
+  <div class="page-shell">
+    <div class="page-heading"><h1>Songs</h1><p id="songsCount">0 songs on this device.</p></div>
+    <div class="search-wrap">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <input class="search-box" id="songsSearch" type="search" placeholder="Search songs..." autocomplete="off">
+      <button class="search-clear" id="songsSearchClear" aria-label="Clear"><svg class="icon icon-sm"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="filter-row">
+      <button class="tab-btn active" data-sort="added">Recently Added</button>
+      <button class="tab-btn" data-sort="alpha">Alphabetical</button>
+      <button class="tab-btn" data-sort="artist">Artist</button>
+    </div>
+    <div class="track-list" id="songsList"></div>
   </div>
 </section>
 
@@ -375,6 +403,48 @@
   </div>
 </section>
 
+<!-- ============ RECENTLY ADDED "/recently-added" ============ -->
+<section class="page" id="page-recently-added" data-page-route="/recently-added">
+  <div class="page-shell">
+    <div class="page-heading"><h1>Recently Added</h1><p>Music recently imported into Lux Sound Lab, newest first.</p></div>
+    <div class="track-list" id="recentlyAddedList"></div>
+  </div>
+</section>
+
+<!-- ============ DISCOVER "/discover" ============ -->
+<section class="page" id="page-discover" data-page-route="/discover">
+  <div class="page-shell">
+    <div class="page-heading"><h1>Discover</h1><p>Built entirely from your own listening data — no online catalog, no fake recommendations.</p></div>
+    <div class="section"><div class="section-head"><h2 class="section-title">Most Played</h2></div><div class="rail" id="discoverMostPlayed"></div></div>
+    <div class="section"><div class="section-head"><h2 class="section-title">Favorite Artists</h2></div><div class="card-grid" id="discoverFavArtists"></div></div>
+    <div class="section"><div class="section-head"><h2 class="section-title">Recently Played</h2></div><div class="rail" id="discoverRecent"></div></div>
+  </div>
+</section>
+
+<!-- ============ GENRES "/genres" ============ -->
+<section class="page" id="page-genres" data-page-route="/genres">
+  <div class="page-shell">
+    <div class="page-heading"><h1>Genres</h1><p>Lux Sound Lab can't read genre tags automatically — tag songs manually from their More menu → Song Information.</p></div>
+    <div class="card-grid" id="genreGrid"></div>
+    <div class="section" id="genreDetailWrap"></div>
+  </div>
+</section>
+
+<!-- ============ IMPORT MUSIC (dedicated) "/import" ============ -->
+<section class="page" id="page-import" data-page-route="/import">
+  <div class="page-shell" style="max-width:700px">
+    <div class="page-heading"><h1>Import Music</h1><p>Bring audio files from your device into Lux Sound Lab.</p></div>
+    <div class="info-card" style="display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+      <p style="margin:0">Supports MP3, WAV, M4A/AAC and OGG — whatever your browser can decode. Files stay on this device; nothing is uploaded anywhere.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary-btn" id="importPageFolderBtn"><svg class="icon"><use href="#i-folder"/></svg> Choose Folder</button>
+        <button class="secondary-btn" id="importPageFilesBtn"><svg class="icon"><use href="#i-upload"/></svg> Choose Files</button>
+      </div>
+    </div>
+    <div id="importResultSummary" style="margin-top:18px"></div>
+  </div>
+</section>
+
 <!-- ============ QUEUE "/queue" ============ -->
 <section class="page" id="page-queue" data-page-route="/queue">
   <div class="page-shell">
@@ -418,6 +488,7 @@
       <div class="profile-top-text"><h1 id="profileDisplayName">Music Lover</h1><p id="profileUsername">@musiclover</p></div>
       <button class="profile-edit-btn" id="profileEditBtn" aria-label="Edit profile"><svg class="icon"><use href="#i-edit"/></svg></button>
     </div>
+    <p id="profileBio" style="color:var(--muted);font-size:13px;line-height:1.6;margin:-10px 0 22px;display:none"></p>
 
     <div class="profile-stats">
       <div class="stat"><strong id="profilePlaylists">0</strong><span>Playlists</span></div>
@@ -440,24 +511,67 @@
     </div>
 
     <div class="profile-brand-card">
-      <div class="brand-mark-icon"><svg class="icon"><use href="#i-brand"/></svg></div>
+      <img class="brand-mark-icon" src="assets/icon-mark.png" alt="Lux Sound Lab">
       <strong>Lux Sound Lab</strong>
       <span>Local Music • Your Music • No Limits</span>
     </div>
   </div>
 </section>
 
-<!-- ============ SETTINGS "/settings" ============ -->
+<!-- ============ EDIT PROFILE (dedicated) "/profile/edit" ============ -->
+<section class="page" id="page-profile-edit" data-page-route="/profile/edit">
+  <div class="page-shell" style="max-width:520px">
+    <div class="page-back-row"><button class="back-btn" id="profileEditCancelBtn"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Edit Profile</h1></div>
+    <div class="avatar-edit-wrap">
+      <div class="avatar-edit-preview" id="editAvatarPreviewBtn"><img id="editAvatarPreview" src="" alt=""><div class="avatar-edit-overlay"><svg class="icon icon-sm"><use href="#i-edit"/></svg></div></div>
+      <div style="display:flex;gap:8px">
+        <button class="secondary-btn" id="editAvatarChangeBtn" type="button" style="padding:8px 14px;font-size:12px">Change Photo</button>
+        <button class="secondary-btn" id="editAvatarRemoveBtn" type="button" style="padding:8px 14px;font-size:12px">Remove</button>
+      </div>
+    </div>
+    <div class="modal-field"><label for="editNameInput">Display Name</label><input id="editNameInput" type="text"></div>
+    <div class="modal-field"><label for="editUsernameInput">Username</label><input id="editUsernameInput" type="text"></div>
+    <div class="modal-field"><label for="editBioInput">Bio</label><textarea id="editBioInput" rows="3" maxlength="160" placeholder="Say something about your taste in music..."></textarea></div>
+    <div class="modal-actions" style="max-width:none">
+      <button class="secondary-btn" id="profileEditCancelBtnBottom">Cancel</button>
+      <button class="primary-btn" id="profileEditSaveBtn">Save</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS HUB "/settings" ============ -->
 <section class="page" id="page-settings" data-page-route="/settings">
   <div class="page-shell" style="max-width:820px">
     <div class="page-heading"><h1>Settings</h1><p>Customize your Lux Sound Lab experience.</p></div>
+    <div class="card-grid">
+      <button class="link-row" data-route="/settings/account" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-user"/></svg></span><span class="link-row-text"><strong>Account</strong><span>Profile, username</span></span></button>
+      <button class="link-row" data-route="/settings/appearance" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-sun"/></svg></span><span class="link-row-text"><strong>Appearance</strong><span>Theme, accent, layout</span></span></button>
+      <button class="link-row" data-route="/settings/playback" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-play"/></svg></span><span class="link-row-text"><strong>Playback</strong><span>Autoplay, crossfade, speed</span></span></button>
+      <button class="link-row" data-route="/settings/audio" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-volume"/></svg></span><span class="link-row-text"><strong>Audio</strong><span>Normalization, equalizer</span></span></button>
+      <button class="link-row" data-route="/settings/library" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-library"/></svg></span><span class="link-row-text"><strong>Library</strong><span>Import, storage</span></span></button>
+      <button class="link-row" data-route="/settings/privacy" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-shield"/></svg></span><span class="link-row-text"><strong>Privacy</strong><span>History, data controls</span></span></button>
+      <button class="link-row" data-route="/settings/about" style="flex-direction:column;align-items:flex-start;height:auto"><span class="link-row-icon"><svg class="icon"><use href="#i-info"/></svg></span><span class="link-row-text"><strong>About</strong><span>Version, data export, help</span></span></button>
+    </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">Account</div>
+<!-- ============ SETTINGS → ACCOUNT ============ -->
+<section class="page" id="page-settings-account" data-page-route="/settings/account">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Account</h1></div>
     <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>Profile</strong><span id="settingsProfileSummary">Music Lover · @musiclover</span></div><button class="secondary-btn" id="settingsEditProfileBtn">Edit</button></div>
     </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">Appearance</div>
+<!-- ============ SETTINGS → APPEARANCE ============ -->
+<section class="page" id="page-settings-appearance" data-page-route="/settings/appearance">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Appearance</h1></div>
     <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>Theme</strong><span>Dark, light, or match your system</span></div>
         <div class="theme-row" id="themeRow" style="max-width:260px">
@@ -470,45 +584,89 @@
         <div class="color-swatches" id="accentSwatches"></div>
       </div>
       <div class="setting"><div class="setting-info"><strong>Compact Layout</strong><span>Tighter spacing in lists</span></div><button class="toggle" id="settingCompact"><span></span></button></div>
+      <div class="setting"><div class="setting-info"><strong>Reduced Motion</strong><span>Minimize animations and transitions</span></div><button class="toggle" id="settingReducedMotion"><span></span></button></div>
+      <div class="setting"><div class="setting-info"><strong>Larger Text</strong><span>Increase text size across the app</span></div><button class="toggle" id="settingLargerText"><span></span></button></div>
     </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">Playback</div>
+<!-- ============ SETTINGS → PLAYBACK ============ -->
+<section class="page" id="page-settings-playback" data-page-route="/settings/playback">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Playback</h1></div>
     <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>Autoplay</strong><span>Keep playing when your queue ends by restarting it</span></div><button class="toggle on" id="settingAutoplay"><span></span></button></div>
-      <div class="setting"><div class="setting-info"><strong>Crossfade</strong><span>Blend the end of one track into the next</span></div>
+      <div class="setting"><div class="setting-info"><strong>Crossfade</strong><span>Blend the end of one track into the next (seconds)</span></div>
         <input type="range" class="progress" style="width:130px" min="0" max="8" value="0" id="settingCrossfade"></div>
+      <div class="setting"><div class="setting-info"><strong>Default Playback Speed</strong><span>Applied to newly played tracks; also adjustable from Now Playing</span></div>
+        <div class="filter-row" style="margin:0;gap:6px" id="speedChoices">
+          <button class="tab-btn" data-speed-choice="0.75">0.75×</button>
+          <button class="tab-btn active" data-speed-choice="1">1×</button>
+          <button class="tab-btn" data-speed-choice="1.25">1.25×</button>
+          <button class="tab-btn" data-speed-choice="1.5">1.5×</button>
+          <button class="tab-btn" data-speed-choice="2">2×</button>
+        </div>
+      </div>
+      <div class="setting"><div class="setting-info"><strong>Continue Playing</strong><span>The same song keeps playing when you navigate between pages — this is always on, by design</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SETTINGS → AUDIO ============ -->
+<section class="page" id="page-settings-audio" data-page-route="/settings/audio">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Audio</h1></div>
+    <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>Normalize Volume</strong><span>Applies dynamic range compression so quiet and loud tracks feel closer in level</span></div><button class="toggle" id="settingNormalize"><span></span></button></div>
       <div class="setting"><div class="setting-info"><strong>Audio Quality</strong><span>Local files play back at their original encoded quality — there's nothing to select</span></div><span style="color:var(--muted-2);font-size:12px;font-weight:700">Original</span></div>
-    </div>
-
-    <div class="settings-section-title">Equalizer</div>
-    <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>Equalizer</strong><span>Open the full equalizer page</span></div><button class="secondary-btn" data-route="/equalizer">Open</button></div>
     </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">Library</div>
+<!-- ============ SETTINGS → LIBRARY ============ -->
+<section class="page" id="page-settings-library" data-page-route="/settings/library">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Library</h1></div>
     <div class="settings-list">
-      <div class="setting"><div class="setting-info"><strong>Import Music</strong><span>Add individual audio files</span></div><button class="round-action" id="settingImportFiles"><svg class="icon"><use href="#i-upload"/></svg></button></div>
+      <div class="setting"><div class="setting-info"><strong>Import Music</strong><span>Open the dedicated import page</span></div><button class="secondary-btn" data-route="/import">Open</button></div>
+      <div class="setting"><div class="setting-info"><strong>Import Files</strong><span>Add individual audio files directly</span></div><button class="round-action" id="settingImportFiles"><svg class="icon"><use href="#i-upload"/></svg></button></div>
       <div class="setting"><div class="setting-info"><strong>Scan Folder</strong><span>Scan a folder on your device for supported audio files</span></div><button class="round-action" id="settingChooseFolder"><svg class="icon"><use href="#i-folder"/></svg></button></div>
       <div class="setting"><div class="setting-info"><strong>Library Storage</strong><span id="storageDetail">Imported audio is stored locally in this browser.</span></div><button class="round-action" id="clearLibraryBtn" style="color:#ff8383"><svg class="icon"><use href="#i-trash"/></svg></button></div>
     </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">Notifications</div>
+<!-- ============ SETTINGS → PRIVACY ============ -->
+<section class="page" id="page-settings-privacy" data-page-route="/settings/privacy">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Privacy</h1></div>
     <div class="settings-list">
+      <div class="setting"><div class="setting-info"><strong>Full Privacy Policy</strong><span>See exactly what's stored and clear it</span></div><button class="secondary-btn" data-route="/privacy">Open</button></div>
       <div class="setting"><div class="setting-info"><strong>Playback Notifications</strong><span id="notifSub">Show a system notification when a new track starts (needs your browser's permission)</span></div><button class="toggle" id="settingNotifications"><span></span></button></div>
-    </div>
-
-    <div class="settings-section-title">Privacy</div>
-    <div class="settings-list">
-      <div class="setting"><div class="setting-info"><strong>Privacy</strong><span>See exactly what's stored and clear it</span></div><button class="secondary-btn" data-route="/privacy">Open</button></div>
       <div class="setting"><div class="setting-info"><strong>Recently Played Visibility</strong><span>Show your recently played history in Home and Profile</span></div><button class="toggle on" id="settingShowHistory"><span></span></button></div>
       <div class="setting"><div class="setting-info"><strong>Clear Listening History</strong><span>Removes your recently played list only</span></div><button class="round-action" id="settingClearHistory" style="color:#ff8383"><svg class="icon"><use href="#i-trash"/></svg></button></div>
     </div>
+  </div>
+</section>
 
-    <div class="settings-section-title">About</div>
+<!-- ============ SETTINGS → ABOUT ============ -->
+<section class="page" id="page-settings-about" data-page-route="/settings/about">
+  <div class="page-shell" style="max-width:820px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>About</h1></div>
     <div class="settings-list">
       <div class="setting"><div class="setting-info"><strong>About Lux Sound Lab</strong><span>Version, credits and help</span></div><button class="secondary-btn" data-route="/about">Open</button></div>
+      <div class="setting"><div class="setting-info"><strong>Terms</strong><span>Read the Terms page</span></div><button class="secondary-btn" data-route="/terms">Open</button></div>
+      <div class="setting"><div class="setting-info"><strong>Export Data</strong><span>Download your profile, settings, liked songs and playlists as JSON</span></div><button class="round-action" id="exportDataBtn"><svg class="icon"><use href="#i-download"/></svg></button></div>
+      <div class="setting"><div class="setting-info"><strong>Import Data</strong><span>Restore from a previously exported Lux Sound Lab file</span></div><button class="round-action" id="importDataBtn"><svg class="icon"><use href="#i-upload"/></svg></button></div>
+      <div class="setting"><div class="setting-info"><strong>Reset App Data</strong><span>Remove everything — library, playlists, profile and settings</span></div><button class="round-action" id="resetAppDataBtn" style="color:#ff8383"><svg class="icon"><use href="#i-trash"/></svg></button></div>
     </div>
+    <input type="file" id="importDataInput" accept="application/json" hidden>
   </div>
 </section>
 
@@ -538,7 +696,7 @@
     <div class="page-heading"><h1>About &amp; Help</h1></div>
 
     <div class="info-card" style="display:flex;align-items:center;gap:14px">
-      <div class="brand-mark-icon"><svg class="icon"><use href="#i-brand"/></svg></div>
+      <img class="brand-mark-icon" src="assets/icon-mark.png" alt="Lux Sound Lab">
       <div><h3 style="margin:0">Lux Sound Lab</h3><div class="about-version">Version 1.0.0 · Local-only build</div></div>
     </div>
     <div class="info-card"><h3>About</h3><p>Lux Sound Lab is a local-first music player: import audio from your device and get playlists, an equalizer, a visual now-playing experience and library organization — all running entirely in your browser, with no account and no backend.</p></div>
@@ -552,7 +710,19 @@
     </div>
 
     <div class="info-card"><h3>Contact &amp; Support</h3><p>This build doesn't have a support inbox connected yet — if you're the developer testing this, that's the next thing to wire up.</p></div>
-    <div class="info-card"><h3>Privacy Policy &amp; Terms</h3><p>See the <a href="/privacy" data-route="/privacy" style="color:var(--purple);font-weight:700">Privacy page</a> for what's stored locally. Formal Terms of Service aren't written yet since there's no account system or backend for them to govern.</p></div>
+    <div class="info-card"><h3>Privacy Policy &amp; Terms</h3><p>See the <a href="/privacy" data-route="/privacy" style="color:var(--purple);font-weight:700">Privacy page</a> and <a href="/terms" data-route="/terms" style="color:var(--purple);font-weight:700">Terms page</a> for the details.</p></div>
+  </div>
+</section>
+
+<!-- ============ TERMS "/terms" ============ -->
+<section class="page" id="page-terms" data-page-route="/terms">
+  <div class="page-shell" style="max-width:700px">
+    <div class="page-back-row"><button class="back-btn" data-route="/settings/about"><svg class="icon"><use href="#i-chevron-left"/></svg></button></div>
+    <div class="page-heading"><h1>Terms</h1><p>Plain-language terms for a local-only app with no account system.</p></div>
+    <div class="info-card"><h3>What Lux Sound Lab is</h3><p>A local music player that runs entirely in your browser. There's no account, no server, and no backend processing your data — everything described here reflects that.</p></div>
+    <div class="info-card"><h3>Your content</h3><p>The music you import is yours. Lux Sound Lab doesn't claim any rights to it, doesn't redistribute it, and doesn't transmit it anywhere. You're responsible for having the rights to use whatever files you import.</p></div>
+    <div class="info-card"><h3>No warranty</h3><p>Lux Sound Lab is provided as-is, without warranty of any kind. Local storage limits, browser bugs, or clearing site data can result in the loss of your library, playlists or settings — export your data from Settings periodically if that would matter to you.</p></div>
+    <div class="info-card"><h3>Future changes</h3><p>If Lux Sound Lab ever adds an account system or backend features, these terms would be updated to reflect that, and you'd be told plainly what changed.</p></div>
   </div>
 </section>
 
@@ -630,7 +800,8 @@
       <input type="range" class="progress" id="volumeSlider" min="0" max="100" value="80" aria-label="Volume" style="flex:1">
     </div>
 
-    <div class="now-actions" style="grid-template-columns:repeat(3,1fr)">
+    <div class="now-actions" style="grid-template-columns:repeat(4,1fr)">
+      <button class="now-action" id="speedBtn"><svg class="icon"><use href="#i-sliders"/></svg><span id="speedLabel">1×</span></button>
       <button class="now-action" id="eqShortcutBtn"><svg class="icon"><use href="#i-sliders"/></svg><span>Equalizer</span></button>
       <button class="now-action" id="shareBtn"><svg class="icon"><use href="#i-share"/></svg><span>Share</span></button>
       <button class="now-action" id="queueBtn"><svg class="icon"><use href="#i-queue"/></svg><span>Queue</span></button>
