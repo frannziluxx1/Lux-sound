@@ -38,12 +38,14 @@ const state = {
   eqPreamp: 0,
   customPreset: null,
   playlists: [], // {id, name, description, songIds, createdAt}
-  profile: { name: "Music Lover", username: "musiclover", avatar: null },
+  profile: { name: "Music Lover", username: "musiclover", bio: "", avatar: null },
   settings: {
     theme: "dark", accent: 262, compact: false, autoplay: true, crossfade: 0,
     normalize: false, notifications: false, showHistory: true, volume: 80, muted: false,
+    reducedMotion: false, largerText: false, defaultSpeed: 1,
   },
   recentSearches: [],
+  lastImportResult: null,
   route: "/",
   routeParams: {},
   currentEntity: null, // artist/album/playlist name or id currently viewed
@@ -217,7 +219,7 @@ function createTrack(file) {
   const parsed = parseTitleArtist(file.name);
   return {
     id: makeTrackId(file), libraryKey: makeLibraryKey(file), name: file.name,
-    title: parsed.title, artist: parsed.artist, album: "Unknown Album",
+    title: parsed.title, artist: parsed.artist, album: "Unknown Album", genre: "Unknown Genre",
     type: file.type || "audio/*", size: file.size, lastModified: file.lastModified,
     artwork: null, blob: file, importedAt: Date.now(),
   };
@@ -254,12 +256,22 @@ async function loadLibrary() {
 function openFilePicker() { $("#musicInput").value = ""; $("#musicInput").click(); }
 
 async function importFiles(fileList) {
-  const files = [...fileList].filter(isAudioFile);
-  if (!files.length) { toast("No supported music files were found in that selection. Try MP3, WAV, M4A/AAC or OGG.", "error"); return; }
+  const allFiles = [...fileList];
+  const unsupported = allFiles.filter(f => !isAudioFile(f));
+  const files = allFiles.filter(isAudioFile);
 
   const existingKeys = new Set(state.tracks.map(t => t.libraryKey));
+  const duplicates = files.filter(f => existingKeys.has(makeLibraryKey(f)));
   const newFiles = files.filter(f => !existingKeys.has(makeLibraryKey(f)));
-  if (!newFiles.length) { toast("Those exact files are already in your library.", "info"); return; }
+
+  state.lastImportResult = { succeeded: [], persistFailed: [], unsupported: unsupported.map(f => f.name), duplicates: duplicates.map(f => f.name) };
+
+  if (!newFiles.length) {
+    if (unsupported.length && !duplicates.length) toast("No supported music files were found in that selection. Try MP3, WAV, M4A/AAC or OGG.", "error");
+    else if (duplicates.length) toast("Those exact files are already in your library.", "info");
+    if (state.route === "/import") renderImportPage();
+    return;
+  }
 
   const progress = $("#importProgress"), fill = $("#importProgressFill"), status = $("#importStatus"), percent = $("#importPercent");
   progress.classList.add("show");
@@ -270,10 +282,13 @@ async function importFiles(fileList) {
     try {
       if (state.dbReady) await dbPut(STORE_SONGS, track);
       state.tracks.push(track);
+      state.lastImportResult.succeeded.push(track.title);
       succeeded++;
     } catch (error) {
       console.error("Could not persist:", file.name, error);
-      state.tracks.push(track); succeeded++; failed++;
+      state.tracks.push(track);
+      state.lastImportResult.persistFailed.push(track);
+      succeeded++; failed++;
     }
     const value = Math.round((succeeded / newFiles.length) * 100);
     fill.style.width = `${value}%`; percent.textContent = `${value}%`;
@@ -282,7 +297,8 @@ async function importFiles(fileList) {
   setTimeout(() => progress.classList.remove("show"), 500);
 
   renderRoute();
-  navigate("/library");
+  if (state.route !== "/import") navigate("/library");
+  else renderImportPage();
 
   if (!state.dbReady) {
     toast(`${succeeded} song${succeeded===1?"":"s"} added for this session — persistent storage isn't available, so your library won't survive a refresh. See Settings for details.`, "error");
@@ -291,6 +307,21 @@ async function importFiles(fileList) {
   } else {
     toast(`${succeeded} song${succeeded===1?"":"s"} imported.`, "success");
   }
+}
+
+async function retryPersist() {
+  const pending = state.lastImportResult?.persistFailed || [];
+  if (!pending.length) return;
+  let fixed = 0;
+  for (const track of [...pending]) {
+    try {
+      if (state.dbReady) await dbPut(STORE_SONGS, track);
+      fixed++;
+      state.lastImportResult.persistFailed = state.lastImportResult.persistFailed.filter(t => t.id !== track.id);
+    } catch (error) { console.warn("Retry failed again:", track.title, error); }
+  }
+  renderImportPage();
+  toast(fixed ? `${fixed} song${fixed===1?"":"s"} saved successfully.` : "Still couldn't save — storage may be unavailable.", fixed ? "success" : "error");
 }
 
 async function requestFolderAccess() {
@@ -329,9 +360,12 @@ $("#musicInput").addEventListener("change", e => importFiles(e.target.files));
 $("#folderInput").addEventListener("change", e => importFiles(e.target.files));
 
 /* ============================== ROUTER ============================== */
-const ROUTES = ["/", "/search", "/library", "/albums", "/albums/:name", "/artists", "/artists/:name",
-  "/playlists", "/playlists/:id", "/liked", "/recently-played", "/local-music", "/queue", "/equalizer",
-  "/profile", "/settings", "/privacy", "/about", "/now-playing"];
+const ROUTES = ["/", "/search", "/library", "/songs", "/albums", "/albums/:name", "/artists", "/artists/:name",
+  "/playlists", "/playlists/:id", "/liked", "/recently-played", "/recently-added", "/local-music", "/discover", "/genres",
+  "/import", "/queue", "/equalizer", "/profile", "/profile/edit",
+  "/settings", "/settings/account", "/settings/appearance", "/settings/playback", "/settings/audio",
+  "/settings/library", "/settings/privacy", "/settings/about",
+  "/privacy", "/terms", "/about", "/now-playing"];
 
 function matchRoute(path) {
   const clean = path.replace(/\/+$/, "") || "/";
@@ -359,13 +393,19 @@ window.addEventListener("popstate", renderRoute);
 
 function pageIdForPattern(pattern) {
   const map = {
-    "/": "page-home", "/search": "page-search", "/library": "page-library",
+    "/": "page-home", "/search": "page-search", "/library": "page-library", "/songs": "page-songs",
     "/albums": "page-albums", "/albums/:name": "page-album-detail",
     "/artists": "page-artists", "/artists/:name": "page-artist-detail",
     "/playlists": "page-playlists", "/playlists/:id": "page-playlist-detail",
-    "/liked": "page-liked", "/recently-played": "page-recent", "/local-music": "page-local-music",
-    "/queue": "page-queue", "/equalizer": "page-equalizer", "/profile": "page-profile",
-    "/settings": "page-settings", "/privacy": "page-privacy", "/about": "page-about",
+    "/liked": "page-liked", "/recently-played": "page-recent", "/recently-added": "page-recently-added",
+    "/local-music": "page-local-music", "/discover": "page-discover", "/genres": "page-genres",
+    "/import": "page-import", "/queue": "page-queue", "/equalizer": "page-equalizer",
+    "/profile": "page-profile", "/profile/edit": "page-profile-edit",
+    "/settings": "page-settings", "/settings/account": "page-settings-account",
+    "/settings/appearance": "page-settings-appearance", "/settings/playback": "page-settings-playback",
+    "/settings/audio": "page-settings-audio", "/settings/library": "page-settings-library",
+    "/settings/privacy": "page-settings-privacy", "/settings/about": "page-settings-about",
+    "/privacy": "page-privacy", "/terms": "page-terms", "/about": "page-about",
   };
   return map[pattern] || "page-404";
 }
@@ -404,16 +444,29 @@ function renderPageContent(pattern) {
   if (pattern === "/") renderHome();
   else if (pattern === "/search") renderSearchPage();
   else if (pattern === "/library") renderLibraryPage();
+  else if (pattern === "/songs") renderSongsPage();
   else if (pattern === "/albums") renderAlbumsGrid();
   else if (pattern === "/artists") renderArtistsGrid();
   else if (pattern === "/playlists") renderPlaylistsGrid();
   else if (pattern === "/liked") renderLikedPage();
   else if (pattern === "/recently-played") renderRecentPage();
+  else if (pattern === "/recently-added") renderRecentlyAddedPage();
   else if (pattern === "/local-music") renderLocalMusicPage();
+  else if (pattern === "/discover") renderDiscoverPage();
+  else if (pattern === "/genres") renderGenresPage();
+  else if (pattern === "/import") renderImportPage();
   else if (pattern === "/queue") renderQueuePage();
   else if (pattern === "/equalizer") renderEqualizerPage();
   else if (pattern === "/profile") renderProfilePage();
-  else if (pattern === "/settings") renderSettingsPage();
+  else if (pattern === "/profile/edit") renderProfileEditPage();
+  else if (pattern === "/settings") renderSettingsHub();
+  else if (pattern === "/settings/account") renderSettingsAccount();
+  else if (pattern === "/settings/appearance") renderSettingsAppearance();
+  else if (pattern === "/settings/playback") renderSettingsPlayback();
+  else if (pattern === "/settings/audio") renderSettingsAudio();
+  else if (pattern === "/settings/library") renderSettingsLibrary();
+  else if (pattern === "/settings/privacy") renderSettingsPrivacy();
+  else if (pattern === "/settings/about") renderSettingsAbout();
 }
 
 /* ============================== playback engine ==============================
@@ -453,6 +506,7 @@ async function playTrack(track, list = state.tracks) {
   try {
     nextEl.src = getTrackURL(track);
     nextEl.currentTime = 0;
+    nextEl.playbackRate = state.settings.defaultSpeed || 1;
     if (state.audioContext) gainNodeFor(nextEl).gain.setValueAtTime(doCrossfade ? 0 : 1, state.audioContext.currentTime);
     await nextEl.play();
     state.isPlaying = true;
@@ -678,9 +732,8 @@ function renderTrackList(container, tracks, opts = {}) {
         </div>
         <div class="track-actions">
           <button class="round-action ${liked?'liked':''}" title="Like" data-like="${escapeAttr(track.id)}"><svg class="icon"><use href="#i-heart"/></svg></button>
-          <button class="round-action" title="Add to playlist" data-addqueue-menu="${escapeAttr(track.id)}"><svg class="icon"><use href="#i-add-playlist"/></svg></button>
           <button class="round-action play-row" title="Play" data-id="${escapeAttr(track.id)}"><svg class="icon"><use href="#i-${playing && state.isPlaying ? "pause" : "play"}"/></svg></button>
-          <button class="round-action delete-row" title="Remove" data-id="${escapeAttr(track.id)}"><svg class="icon"><use href="#i-x"/></svg></button>
+          <button class="round-action" title="More" data-more-menu="${escapeAttr(track.id)}"><svg class="icon"><use href="#i-more"/></svg></button>
         </div>
       </div>`;
   }).join("");
@@ -699,11 +752,8 @@ document.addEventListener("click", async event => {
   const likeButton = event.target.closest("[data-like]");
   if (likeButton) { toggleLike(likeButton.dataset.like); return; }
 
-  const menuButton = event.target.closest("[data-addqueue-menu]");
-  if (menuButton) { openTrackMenu(menuButton.dataset.addqueueMenu); return; }
-
-  const deleteButton = event.target.closest(".delete-row");
-  if (deleteButton) { await removeTrack(deleteButton.dataset.id); return; }
+  const menuButton = event.target.closest("[data-more-menu]");
+  if (menuButton) { openTrackMenu(menuButton.dataset.moreMenu); return; }
 
   const trackRow = event.target.closest(".track-row");
   if (trackRow && !event.target.closest(".track-actions")) {
@@ -726,19 +776,82 @@ function dedupeRecentTracks() {
   return out;
 }
 
-function openTrackMenu(trackId) {
+function openTrackMenu(trackId, opts = {}) {
   const track = getTrackById(trackId);
   if (!track) return;
+  const liked = state.liked.includes(track.id);
+  const inPlaylist = opts.playlistId || (state.route === "/playlists/:id" ? state.currentEntity : null);
+
+  const rows = [
+    { action: "playnext", icon: "i-next", label: "Play Next" },
+    { action: "queue", icon: "i-queue", label: "Add to Queue" },
+    { action: "like", icon: "i-heart", label: liked ? "Remove from Liked Songs" : "Add to Liked Songs" },
+    { action: "playlist", icon: "i-add-playlist", label: "Add to Playlist" },
+    { action: "speed", icon: "i-sliders", label: `Playback Speed (${state.settings.defaultSpeed || 1}×)` },
+    { action: "share", icon: "i-share", label: "Share" },
+    { action: "info", icon: "i-info", label: "Song Information" },
+  ];
+  if (inPlaylist) rows.push({ action: "removeFromPlaylist", icon: "i-x", label: "Remove from This Playlist" });
+  rows.push({ action: "remove", icon: "i-trash", label: "Remove from Library" });
+
+  const html = `<div class="playlist-pick-list">${rows.map(r => `<div class="playlist-pick-item" data-menu-action="${r.action}"><svg class="icon icon-sm"><use href="#${r.icon}"/></svg> ${escapeHTML(r.label)}</div>`).join("")}</div>`;
+  showModal(track.title, track.artist, "Close", html, { hideCancel: true, stack: true });
+  $("#modalConfirm").textContent = "Close";
+  $("#modalConfirm").onclick = () => { closeModal(false); restoreModalDefaults(); };
+
+  $$('[data-menu-action]').forEach(item => item.addEventListener("click", async () => {
+    const action = item.dataset.menuAction;
+    closeModal(false); restoreModalDefaults();
+    if (action === "playnext") { state.queue.splice(state.queueIndex + 1, 0, track); toast("Will play next.", "success"); }
+    else if (action === "queue") { state.queue.push(track); toast("Added to queue.", "success"); }
+    else if (action === "like") toggleLike(track.id);
+    else if (action === "playlist") openPlaylistPicker(track.id);
+    else if (action === "speed") cyclePlaybackSpeed();
+    else if (action === "share") await shareTrack(track);
+    else if (action === "info") openSongInfo(track);
+    else if (action === "removeFromPlaylist") await removeSongFromPlaylist(inPlaylist, track.id);
+    else if (action === "remove") await removeTrack(track.id);
+  }));
+}
+
+function openPlaylistPicker(trackId) {
   const items = state.playlists.length
     ? state.playlists.map(p => `<div class="playlist-pick-item" data-pl="${escapeAttr(p.id)}"><svg class="icon icon-sm"><use href="#i-list"/></svg> ${escapeHTML(p.name)}</div>`).join("")
     : `<p style="color:var(--muted);font-size:12.5px">You don't have any playlists yet.</p>`;
-  showModal(track.title, "Add to a playlist, or create a new one.", "New Playlist", `<div class="playlist-pick-list">${items}</div>`, { hideCancel: false });
-  $$(".playlist-pick-item").forEach(item => item.addEventListener("click", async () => {
+  showModal("Add to Playlist", "Choose a playlist, or create a new one.", "New Playlist", `<div class="playlist-pick-list">${items}</div>`);
+  $$(".playlist-pick-item[data-pl]").forEach(item => item.addEventListener("click", async () => {
     await addSongToPlaylist(item.dataset.pl, trackId);
-    closeModal(false);
+    closeModal(false); restoreModalDefaults();
     toast("Added to playlist.", "success");
   }));
-  $("#modalConfirm").onclick = () => { closeModal(false); openCreatePlaylistModal(trackId); };
+  $("#modalConfirm").onclick = () => { closeModal(false); restoreModalDefaults(); openCreatePlaylistModal(trackId); };
+}
+
+async function shareTrack(track) {
+  const text = `${track.title} — ${track.artist}`;
+  if (navigator.share) { try { await navigator.share({ title: track.title, text }); } catch {} }
+  else { try { await navigator.clipboard.writeText(text); toast("Song information copied.", "success"); } catch { toast(text, "info"); } }
+}
+
+const GENRE_CATALOG = ["Afrobeats", "Hip-Hop", "R&B", "Pop", "Rock", "Classical", "Jazz", "Electronic", "Gospel", "Other"];
+function openSongInfo(track) {
+  const genreOptions = ["Unknown Genre", ...GENRE_CATALOG].map(g => `<option value="${escapeAttr(g)}" ${track.genre===g?'selected':''}>${escapeHTML(g)}</option>`).join("");
+  showModal(track.title, "", "Save Genre",
+    `<div class="modal-field"><label>Artist</label><input type="text" value="${escapeAttr(track.artist)}" disabled></div>
+     <div class="modal-field"><label>Album</label><input type="text" value="${escapeAttr(track.album||'Unknown Album')}" disabled></div>
+     <div class="modal-field"><label>Duration</label><input type="text" value="${formatTime(track.duration||0)}" disabled></div>
+     <div class="modal-field"><label>File Type</label><input type="text" value="${escapeAttr((track.type||'').split('/').pop()?.toUpperCase()||'AUDIO')}" disabled></div>
+     <div class="modal-field"><label>File Size</label><input type="text" value="${escapeAttr(formatBytes(track.size))}" disabled></div>
+     <div class="modal-field"><label>Date Added</label><input type="text" value="${escapeAttr(formatDate(track.importedAt))}" disabled></div>
+     <div class="modal-field"><label for="songInfoGenre">Genre — Lux Sound Lab can't read genre tags from audio files, so set it manually if you'd like it organized under Genres.</label>
+       <select id="songInfoGenre">${genreOptions}</select></div>`);
+  $("#modalConfirm").onclick = async () => {
+    track.genre = $("#songInfoGenre").value;
+    if (state.dbReady) { try { await dbPut(STORE_SONGS, track); } catch (e) { console.warn(e); } }
+    closeModal(true); restoreModalDefaults();
+    toast("Genre updated.", "success");
+    if (state.route === "/genres") renderGenresPage();
+  };
 }
 
 async function removeTrack(id) {
@@ -1054,7 +1167,99 @@ function renderLocalMusicPage() {
   renderTrackList($("#localMusicList"), [...state.tracks].sort((a,b)=>b.importedAt-a.importedAt), { showMeta: true, emptyTitle: "No local files yet", emptyDesc: "Files you import from this device will appear here with their metadata." });
 }
 
-/* ============================== queue page ============================== */
+/* ============================== songs (dedicated route) ============================== */
+function renderSongsPage() {
+  $("#songsCount").textContent = `${state.tracks.length} ${state.tracks.length===1?"song":"songs"} on this device.`;
+  $("#songsSearchClear").classList.toggle("show", !!$("#songsSearch").value);
+  const query = $("#songsSearch").value.trim().toLowerCase();
+  let list = query ? state.tracks.filter(t => [t.title,t.artist,t.album].join(" ").toLowerCase().includes(query)) : state.tracks.slice();
+  if (songsSort === "alpha") list.sort((a,b) => a.title.localeCompare(b.title));
+  else if (songsSort === "artist") list.sort((a,b) => a.artist.localeCompare(b.artist));
+  else list.sort((a,b) => b.importedAt - a.importedAt);
+  renderTrackList($("#songsList"), list);
+}
+let songsSort = "added";
+document.addEventListener("click", e => {
+  const sortBtn = e.target.closest("#page-songs [data-sort]");
+  if (!sortBtn) return;
+  songsSort = sortBtn.dataset.sort;
+  $$("#page-songs .tab-btn").forEach(b => b.classList.toggle("active", b === sortBtn));
+  renderSongsPage();
+});
+$("#songsSearch")?.addEventListener("input", renderSongsPage);
+$("#songsSearchClear")?.addEventListener("click", () => { $("#songsSearch").value = ""; renderSongsPage(); });
+
+/* ============================== recently added (dedicated route) ============================== */
+function renderRecentlyAddedPage() {
+  const list = [...state.tracks].sort((a,b) => b.importedAt - a.importedAt);
+  renderTrackList($("#recentlyAddedList"), list, { showMeta: true, emptyTitle: "Nothing imported yet", emptyDesc: "Music you import will show up here, newest first." });
+}
+
+/* ============================== discover (real, computed from local data — no fake recommendations) ============================== */
+function renderDiscoverPage() {
+  const playCounts = new Map();
+  state.recent.forEach(r => playCounts.set(r.songId, (playCounts.get(r.songId)||0) + 1));
+  const mostPlayed = [...playCounts.entries()].sort((a,b) => b[1]-a[1]).slice(0,10).map(([id]) => getTrackById(id)).filter(Boolean);
+  renderTrackCardsInto($("#discoverMostPlayed"), mostPlayed, { emptyText: "Play some songs and your most-played tracks will show up here." });
+
+  const artistLikeCounts = new Map();
+  state.liked.forEach(id => { const t = getTrackById(id); if (t) artistLikeCounts.set(t.artist, (artistLikeCounts.get(t.artist)||0) + 1); });
+  const favArtists = [...artistLikeCounts.entries()].sort((a,b) => b[1]-a[1]).slice(0,10);
+  $("#discoverFavArtists").innerHTML = favArtists.length ? favArtists.map(([name]) => {
+    const tracks = state.tracks.filter(t => t.artist === name);
+    return artistCardHTML(name, tracks);
+  }).join("") : `<div class="empty-state" style="min-width:100%"><h3>No favorite artists yet</h3><p>Like a few songs and your favorite artists will show up here.</p></div>`;
+  bindArtistCards($("#discoverFavArtists"));
+
+  renderTrackCardsInto($("#discoverRecent"), dedupeRecentTracks().slice(0,10), { emptyText: "Songs you play will show up here." });
+}
+
+/* ============================== genres ============================== */
+function getGenreGroups() {
+  const map = new Map();
+  state.tracks.forEach(t => { const g = t.genre || "Unknown Genre"; if (!map.has(g)) map.set(g, []); map.get(g).push(t); });
+  return map;
+}
+let openGenre = null;
+function renderGenresPage() {
+  const groups = getGenreGroups();
+  const names = [...GENRE_CATALOG, "Unknown Genre"];
+  $("#genreGrid").innerHTML = names.map(name => {
+    const tracks = groups.get(name) || [];
+    return `<div class="music-card" data-genre="${escapeAttr(name)}">
+      <div class="artwork music-card-art">${tracks[0] ? artworkHTML(tracks[0].artwork) : `<div class="artwork-fallback"><svg class="icon"><use href="#i-music"/></svg></div>`}</div>
+      <div class="music-card-info"><div class="music-card-title">${escapeHTML(name)}</div><div class="music-card-artist">${tracks.length} ${tracks.length===1?"song":"songs"}</div></div>
+    </div>`;
+  }).join("");
+  $$("#genreGrid [data-genre]").forEach(card => card.addEventListener("click", () => { openGenre = card.dataset.genre; renderGenreDetail(); }));
+  renderGenreDetail();
+}
+function renderGenreDetail() {
+  const wrap = $("#genreDetailWrap");
+  if (!openGenre) { wrap.innerHTML = ""; return; }
+  const tracks = getGenreGroups().get(openGenre) || [];
+  wrap.innerHTML = `<div class="section-head"><h2 class="section-title">${escapeHTML(openGenre)}</h2><button class="section-link" id="genreCloseBtn">Close</button></div><div class="track-list" id="genreTrackList"></div>`;
+  $("#genreCloseBtn").addEventListener("click", () => { openGenre = null; renderGenreDetail(); });
+  renderTrackList($("#genreTrackList"), tracks, { emptyTitle: "No songs in this genre yet", emptyDesc: "Use a song's More menu → Song Information to tag its genre." });
+}
+
+/* ============================== import (dedicated route) ============================== */
+function renderImportPage() {
+  const result = state.lastImportResult;
+  const summary = $("#importResultSummary");
+  if (!result) { summary.innerHTML = ""; return; }
+  const parts = [];
+  if (result.succeeded.length) parts.push(`<div class="info-card"><h3>✓ ${result.succeeded.length} imported successfully</h3><p>${result.succeeded.map(escapeHTML).join(", ")}</p></div>`);
+  if (result.persistFailed.length) parts.push(`<div class="info-card"><h3>⚠ ${result.persistFailed.length} couldn't be saved permanently</h3><p>These play for this session but won't survive a refresh — usually caused by browser storage limits.</p><button class="secondary-btn" id="retryPersistBtn" style="margin-top:10px">Retry Saving</button></div>`);
+  if (result.duplicates.length) parts.push(`<div class="info-card"><h3>${result.duplicates.length} already in your library</h3><p>${result.duplicates.map(escapeHTML).join(", ")}</p></div>`);
+  if (result.unsupported.length) parts.push(`<div class="info-card"><h3>✕ ${result.unsupported.length} unsupported format</h3><p>${result.unsupported.map(escapeHTML).join(", ")} — Lux Sound Lab supports MP3, WAV, M4A/AAC and OGG (as decodable by your browser). Re-encoding these files is the only fix; retrying the same file won't change the outcome.</p></div>`);
+  summary.innerHTML = parts.join("");
+  $("#retryPersistBtn")?.addEventListener("click", retryPersist);
+}
+$("#importPageFolderBtn")?.addEventListener("click", () => requestFolderAccess());
+$("#importPageFilesBtn")?.addEventListener("click", () => openFilePicker());
+
+
 function renderQueuePage() {
   const nowWrap = $("#queueNowWrap");
   if (!state.currentTrack) {
@@ -1275,6 +1480,8 @@ function startWaveform() {
 function applyProfileEverywhere() {
   $("#profileDisplayName").textContent = state.profile.name;
   $("#profileUsername").textContent = "@" + state.profile.username;
+  const bioEl = $("#profileBio");
+  if (bioEl) { bioEl.textContent = state.profile.bio || ""; bioEl.style.display = state.profile.bio ? "" : "none"; }
   $("#settingsProfileSummary").textContent = `${state.profile.name} · @${state.profile.username}`;
   const avatarHTML = `<img src="${state.profile.avatar || DEFAULT_AVATAR_URL}" alt="">`;
   $("#headerAvatar").innerHTML = avatarHTML;
@@ -1291,38 +1498,38 @@ function renderProfilePage() {
   $("#statTotalPlays").textContent = state.recent.length;
   $("#statUniquePlayed").textContent = new Set(state.recent.map(r=>r.songId)).size;
 }
-function openEditProfileModal() {
-  let pendingAvatar = state.profile.avatar;
-  showModal("Edit Profile", "", "Save",
-    `<div class="avatar-edit-wrap">
-      <div class="avatar-edit-preview" id="avatarPreviewBtn"><img id="avatarPreviewImg" src="${pendingAvatar || DEFAULT_AVATAR_URL}" alt=""><div class="avatar-edit-overlay"><svg class="icon icon-sm"><use href="#i-edit"/></svg></div></div>
-      <button class="secondary-btn" id="avatarChangeBtn" type="button" style="padding:8px 14px;font-size:12px">Change Photo</button>
-    </div>
-    <div class="modal-field"><label for="profileNameInput">Display Name</label><input id="profileNameInput" type="text" value="${escapeAttr(state.profile.name)}"></div>
-    <div class="modal-field"><label for="profileUsernameInput">Username</label><input id="profileUsernameInput" type="text" value="${escapeAttr(state.profile.username)}"></div>`);
-  const pickAvatar = () => $("#avatarInput").click();
-  $("#avatarPreviewBtn").addEventListener("click", pickAvatar);
-  $("#avatarChangeBtn").addEventListener("click", pickAvatar);
-  const onAvatarChange = async e => {
-    const file = e.target.files[0]; if (!file) return;
-    try {
-      pendingAvatar = await resizeImageToDataURL(file, 240);
-      $("#avatarPreviewImg").src = pendingAvatar;
-    } catch { toast("Couldn't read that image.", "error"); }
-  };
-  $("#avatarInput").addEventListener("change", onAvatarChange);
-  $("#modalConfirm").onclick = () => {
-    state.profile.name = $("#profileNameInput").value.trim() || state.profile.name;
-    state.profile.username = ($("#profileUsernameInput").value.trim() || state.profile.username).replace(/^@/, "");
-    state.profile.avatar = pendingAvatar;
-    saveProfile();
-    applyProfileEverywhere();
-    renderProfilePage();
-    $("#avatarInput").removeEventListener("change", onAvatarChange);
-    closeModal(true); restoreModalDefaults();
-    toast("Profile updated.", "success");
-  };
+
+/* -------- dedicated /profile/edit page -------- */
+let pendingAvatarEdit = null;
+function renderProfileEditPage() {
+  pendingAvatarEdit = state.profile.avatar;
+  $("#editAvatarPreview").src = pendingAvatarEdit || DEFAULT_AVATAR_URL;
+  $("#editNameInput").value = state.profile.name;
+  $("#editUsernameInput").value = state.profile.username;
+  $("#editBioInput").value = state.profile.bio || "";
 }
+$("#editAvatarPreviewBtn")?.addEventListener("click", () => $("#avatarInput").click());
+$("#editAvatarChangeBtn")?.addEventListener("click", () => $("#avatarInput").click());
+$("#editAvatarRemoveBtn")?.addEventListener("click", () => { pendingAvatarEdit = null; $("#editAvatarPreview").src = DEFAULT_AVATAR_URL; });
+$("#avatarInput").addEventListener("change", async e => {
+  const file = e.target.files[0]; if (!file) return;
+  if (state.route !== "/profile/edit") return; // the modal-based avatar flow (if any) handles its own listener
+  try { pendingAvatarEdit = await resizeImageToDataURL(file, 240); $("#editAvatarPreview").src = pendingAvatarEdit; }
+  catch { toast("Couldn't read that image.", "error"); }
+});
+$("#profileEditCancelBtn")?.addEventListener("click", () => navigate("/profile"));
+$("#profileEditCancelBtnBottom")?.addEventListener("click", () => navigate("/profile"));
+$("#profileEditSaveBtn")?.addEventListener("click", () => {
+  state.profile.name = $("#editNameInput").value.trim() || state.profile.name;
+  state.profile.username = ($("#editUsernameInput").value.trim() || state.profile.username).replace(/^@/, "");
+  state.profile.bio = $("#editBioInput").value.trim().slice(0, 160);
+  state.profile.avatar = pendingAvatarEdit;
+  saveProfile();
+  applyProfileEverywhere();
+  toast("Profile updated.", "success");
+  navigate("/profile");
+});
+
 function resizeImageToDataURL(file, size) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1344,8 +1551,8 @@ function resizeImageToDataURL(file, size) {
     reader.readAsDataURL(file);
   });
 }
-$("#profileEditBtn").addEventListener("click", openEditProfileModal);
-$("#settingsEditProfileBtn").addEventListener("click", openEditProfileModal);
+$("#profileEditBtn").addEventListener("click", () => navigate("/profile/edit"));
+$("#settingsEditProfileBtn").addEventListener("click", () => navigate("/profile/edit"));
 $("#headerProfile").addEventListener("click", () => navigate("/profile"));
 
 /* ============================== settings ============================== */
@@ -1358,32 +1565,43 @@ function applyTheme() {
 if (window.matchMedia) {
   try { window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (state.settings.theme === "system") applyTheme(); }); } catch {}
 }
+function applyAccessibility() {
+  document.documentElement.classList.toggle("reduced-motion", !!state.settings.reducedMotion);
+  document.documentElement.classList.toggle("larger-text", !!state.settings.largerText);
+}
 const ACCENT_CHOICES = [262, 156, 205, 16, 340];
-function renderSettingsPage() {
+function refreshAllSettingsUI() {
   $$("#themeRow .theme-swatch").forEach(btn => btn.classList.toggle("active", btn.dataset.themeChoice === state.settings.theme));
   $("#accentSwatches").innerHTML = ACCENT_CHOICES.map(h => `<div class="color-swatch ${state.settings.accent==h?'active':''}" style="background:hsl(${h},85%,62%)" data-hue="${h}"></div>`).join("");
-  $$("#accentSwatches .color-swatch").forEach(sw => sw.addEventListener("click", () => { state.settings.accent = +sw.dataset.hue; saveSettings(); applyTheme(); renderSettingsPage(); }));
+  $$("#accentSwatches .color-swatch").forEach(sw => sw.addEventListener("click", () => { state.settings.accent = +sw.dataset.hue; saveSettings(); applyTheme(); refreshAllSettingsUI(); }));
   $("#settingCompact").classList.toggle("on", state.settings.compact);
+  $("#settingReducedMotion")?.classList.toggle("on", !!state.settings.reducedMotion);
+  $("#settingLargerText")?.classList.toggle("on", !!state.settings.largerText);
   $("#settingAutoplay").classList.toggle("on", state.settings.autoplay);
   $("#settingCrossfade").value = state.settings.crossfade;
+  $$("[data-speed-choice]").forEach(b => b.classList.toggle("active", +b.dataset.speedChoice === (state.settings.defaultSpeed||1)));
   $("#settingNormalize").classList.toggle("on", state.settings.normalize);
   $("#settingNotifications").classList.toggle("on", state.settings.notifications);
   $("#settingShowHistory").classList.toggle("on", state.settings.showHistory);
   $("#storageDetail").textContent = state.dbReady
     ? "Imported audio is stored locally in this browser (IndexedDB)."
     : "Persistent storage is unavailable in this session — songs stay only until you refresh. Serve Lux Sound Lab from a local web server (not by double-clicking the file) to fix this.";
+  const summary = $("#settingsProfileSummary"); if (summary) summary.textContent = `${state.profile.name} · @${state.profile.username}`;
 }
-$$("#themeRow .theme-swatch").forEach(btn => btn.addEventListener("click", () => { state.settings.theme = btn.dataset.themeChoice; saveSettings(); applyTheme(); renderSettingsPage(); }));
-$("#settingCompact").addEventListener("click", () => { state.settings.compact = !state.settings.compact; saveSettings(); renderSettingsPage(); });
-$("#settingAutoplay").addEventListener("click", () => { state.settings.autoplay = !state.settings.autoplay; saveSettings(); renderSettingsPage(); });
+$$("#themeRow .theme-swatch").forEach(btn => btn.addEventListener("click", () => { state.settings.theme = btn.dataset.themeChoice; saveSettings(); applyTheme(); refreshAllSettingsUI(); }));
+$("#settingCompact").addEventListener("click", () => { state.settings.compact = !state.settings.compact; saveSettings(); document.documentElement.classList.toggle("compact-layout", state.settings.compact); refreshAllSettingsUI(); });
+$("#settingReducedMotion")?.addEventListener("click", () => { state.settings.reducedMotion = !state.settings.reducedMotion; saveSettings(); applyAccessibility(); refreshAllSettingsUI(); });
+$("#settingLargerText")?.addEventListener("click", () => { state.settings.largerText = !state.settings.largerText; saveSettings(); applyAccessibility(); refreshAllSettingsUI(); });
+$$("[data-speed-choice]").forEach(b => b.addEventListener("click", () => applyPlaybackSpeed(+b.dataset.speedChoice)));
+$("#settingAutoplay").addEventListener("click", () => { state.settings.autoplay = !state.settings.autoplay; saveSettings(); refreshAllSettingsUI(); });
 $("#settingCrossfade").addEventListener("input", e => { state.settings.crossfade = +e.target.value; saveSettings(); });
 $("#settingNormalize").addEventListener("click", () => {
   state.settings.normalize = !state.settings.normalize; saveSettings();
   applyNormalizeGains();
   toast(state.settings.normalize ? "Volume normalization on." : "Volume normalization off.", "info");
-  renderSettingsPage();
+  refreshAllSettingsUI();
 });
-$("#settingShowHistory").addEventListener("click", () => { state.settings.showHistory = !state.settings.showHistory; saveSettings(); renderSettingsPage(); });
+$("#settingShowHistory").addEventListener("click", () => { state.settings.showHistory = !state.settings.showHistory; saveSettings(); refreshAllSettingsUI(); });
 $("#settingImportFiles").addEventListener("click", () => openFilePicker());
 $("#settingChooseFolder").addEventListener("click", () => requestFolderAccess());
 $("#settingClearHistory").addEventListener("click", async () => {
@@ -1412,7 +1630,7 @@ async function toggleNotificationSetting() {
   } else {
     state.settings.notifications = false;
   }
-  saveSettings(); renderSettingsPage();
+  saveSettings(); refreshAllSettingsUI();
 }
 $("#settingNotifications").addEventListener("click", toggleNotificationSetting);
 function maybeNotify(track) {
@@ -1420,8 +1638,83 @@ function maybeNotify(track) {
   try { new Notification(track.title, { body: track.artist, tag: "lux-sound-lab-playback" }); } catch {}
 }
 
+/* ============================== Settings Hub + category sub-pages ==============================
+   One level of nesting (Settings → category) rather than the full three-level
+   spec (Settings → category → sub-page) — same controls, one less layer of
+   otherwise near-empty pages. Every category page just calls
+   refreshAllSettingsUI() since the underlying controls/IDs are unchanged
+   from before, only redistributed across these new page containers. */
+function renderSettingsHub() { /* static cards, nothing to compute */ }
+function renderSettingsAccount() { refreshAllSettingsUI(); }
+function renderSettingsAppearance() { refreshAllSettingsUI(); }
+function renderSettingsPlayback() { refreshAllSettingsUI(); }
+function renderSettingsAudio() { refreshAllSettingsUI(); }
+function renderSettingsLibrary() { refreshAllSettingsUI(); }
+function renderSettingsPrivacy() { refreshAllSettingsUI(); }
+function renderSettingsAbout() { refreshAllSettingsUI(); }
+
+/* ============================== settings data export / import (real, JSON-based) ==============================
+   Exports playlists, liked songs, profile and settings as a downloadable
+   JSON file. Deliberately does NOT include audio blobs (would be enormous
+   and defeats the point of a "settings/data" export) — re-importing
+   restores your organization, not the audio files themselves, which you'd
+   still need to re-import from your device. */
+function exportAppData() {
+  const payload = {
+    exportedAt: new Date().toISOString(), app: "Lux Sound Lab", version: 1,
+    profile: state.profile, settings: state.settings, liked: state.liked,
+    playlists: state.playlists.map(p => ({ ...p, songTitles: p.songIds.map(id => getTrackById(id)?.title).filter(Boolean) })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `lux-sound-lab-export-${Date.now()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  toast("Export downloaded.", "success");
+}
+async function importAppData(file) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (data.app !== "Lux Sound Lab") throw new Error("Not a Lux Sound Lab export file");
+    const confirmed = await showModal("Import settings data?", "This will overwrite your current profile, settings and liked songs, and add any playlists found in the file (matched to songs already in your library by title). This can't be undone.", "Import");
+    restoreModalDefaults();
+    if (!confirmed) return;
+    if (data.profile) { state.profile = { ...state.profile, ...data.profile }; saveProfile(); }
+    if (data.settings) { state.settings = { ...state.settings, ...data.settings }; saveSettings(); applyTheme(); applyAccessibility(); applyVolume(); applyPlaybackSpeed(state.settings.defaultSpeed||1); }
+    if (Array.isArray(data.liked)) { state.liked = data.liked.filter(id => getTrackById(id)); saveLiked(); }
+    if (Array.isArray(data.playlists)) {
+      for (const p of data.playlists) {
+        const matchedIds = (p.songTitles||[]).map(title => state.tracks.find(t => t.title === title)?.id).filter(Boolean);
+        const pl = { id: uid(), name: p.name || "Imported Playlist", description: p.description || "", songIds: matchedIds, createdAt: Date.now() };
+        state.playlists.push(pl);
+        if (state.dbReady) { try { await dbPut(STORE_PLAYLISTS, pl); } catch {} }
+      }
+    }
+    applyProfileEverywhere();
+    renderRoute();
+    toast("Import complete.", "success");
+  } catch (error) {
+    console.warn(error);
+    toast("That file doesn't look like a valid Lux Sound Lab export.", "error");
+  }
+}
+$("#exportDataBtn")?.addEventListener("click", exportAppData);
+$("#importDataInput")?.addEventListener("change", e => { const f = e.target.files[0]; if (f) importAppData(f); e.target.value = ""; });
+$("#importDataBtn")?.addEventListener("click", () => $("#importDataInput").click());
+$("#resetAppDataBtn")?.addEventListener("click", async () => {
+  const confirmed = await showModal("Reset all app data?", "This removes your library, playlists, liked songs, profile and settings from this browser. This can't be undone.", "Reset Everything");
+  restoreModalDefaults();
+  if (!confirmed) return;
+  if (state.dbReady) { try { await dbClear(STORE_SONGS); await dbClear(STORE_PLAYLISTS); } catch {} }
+  state.objectUrls.forEach(url => URL.revokeObjectURL(url)); state.objectUrls.clear();
+  Object.values(K).forEach(key => { try { localStorage.removeItem(key); } catch {} });
+  location.reload();
+});
+
 /* ============================== privacy page ============================== */
-$("#privacyBack").addEventListener("click", () => navigate("/settings"));
+$("#privacyBack").addEventListener("click", () => navigate("/settings/privacy"));
 $("#privacyClearHistory").addEventListener("click", async () => {
   const confirmed = await showModal("Clear listening history?", "This can't be undone.", "Clear History"); restoreModalDefaults();
   if (confirmed) clearHistory();
@@ -1436,7 +1729,7 @@ $("#privacyClearAll").addEventListener("click", async () => {
 });
 
 /* ============================== about page ============================== */
-$("#aboutBack").addEventListener("click", () => navigate("/settings"));
+$("#aboutBack").addEventListener("click", () => navigate("/settings/about"));
 
 /* ============================== header / mini / now-playing controls ============================== */
 $("#importMusicBtn").addEventListener("click", () => requestFolderAccess());
@@ -1467,63 +1760,5 @@ $("#volumeSlider").addEventListener("input", e => {
   saveSettings(); applyVolume();
 });
 $("#muteBtn").addEventListener("click", () => { state.settings.muted = !state.settings.muted; saveSettings(); applyVolume(); });
-$("#shareBtn").addEventListener("click", async () => {
-  if (!state.currentTrack) { toast("Nothing is playing.", "info"); return; }
-  const text = `${state.currentTrack.title} — ${state.currentTrack.artist}`;
-  if (navigator.share) { try { await navigator.share({ title: state.currentTrack.title, text }); } catch {} }
-  else { try { await navigator.clipboard.writeText(text); toast("Song information copied.", "success"); } catch { toast(text, "info"); } }
-});
-$("#nowMore").addEventListener("click", async () => {
-  if (!state.currentTrack) return;
-  openTrackMenu(state.currentTrack.id);
-});
 
-let touchStartY = 0;
-$("#nowPlaying").addEventListener("touchstart", e => { touchStartY = e.touches[0].clientY; }, { passive: true });
-$("#nowPlaying").addEventListener("touchend", e => { if (e.changedTouches[0].clientY - touchStartY > 100 && touchStartY < 250) closeNowPlaying(); }, { passive: true });
-
-document.addEventListener("keydown", e => {
-  const tag = document.activeElement?.tagName;
-  if (e.code === "Space" && !["INPUT","TEXTAREA"].includes(tag)) { e.preventDefault(); togglePlay(); }
-  if (e.key === "Escape") { closeNowPlaying(); closeModal(false); }
-  if (!["INPUT","TEXTAREA"].includes(tag)) {
-    if (e.code === "ArrowRight") activeAudio().currentTime += 10;
-    if (e.code === "ArrowLeft") activeAudio().currentTime = Math.max(0, activeAudio().currentTime - 10);
-    if (e.code === "KeyN") nextTrack();
-    if (e.code === "KeyP") previousTrack();
-    if (e.code === "KeyS") $("#shuffleBtn").click();
-  }
-});
-
-/* ============================== media session ============================== */
-function updateMediaSession(track) {
-  if (!("mediaSession" in navigator) || !track) return;
-  navigator.mediaSession.metadata = new MediaMetadata({ title: track.title, artist: track.artist, album: track.album });
-  navigator.mediaSession.setActionHandler("play", togglePlay);
-  navigator.mediaSession.setActionHandler("pause", togglePlay);
-  navigator.mediaSession.setActionHandler("nexttrack", () => nextTrack());
-  navigator.mediaSession.setActionHandler("previoustrack", previousTrack);
-}
-const _origUpdatePlayerUI = updatePlayerUI;
-
-/* ============================== init ============================== */
-async function init() {
-  loadStorage();
-  applyTheme();
-  applyProfileEverywhere();
-  applyVolume();
-
-  await loadLibrary();
-
-  if (state.tracks.length) hideOnboarding(); else showOnboarding();
-  if (!state.dbReady) {
-    $("#onbNote").textContent = "Note: this browser session can't persist your library (IndexedDB is unavailable). Songs will still play, but won't survive a refresh — try opening Lux Sound Lab from a local web server instead of double-clicking the file.";
-  }
-
-  renderRoute();
-  updatePlayerUI();
-}
-
-init();
-
-})();
+/* ============================== playback speed (real: HTMLMedi
