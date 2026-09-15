@@ -17,6 +17,31 @@
 </head>
 <body>
 
+<!-- =========================================================
+     SELF-DIAGNOSTIC — not part of the app UI. If /app.js fails
+     to load or crashes before running, this shows a plain-
+     language explanation instead of a silently dead page. It
+     uses no external files, so it works even when app.js can't.
+     ========================================================= -->
+<div id="jsLoadCheck" style="display:none;position:fixed;inset:0;z-index:99999;align-items:center;justify-content:center;background:#06070b;color:#f8f8fc;padding:28px;text-align:center;font-family:system-ui,-apple-system,sans-serif;">
+  <div style="max-width:440px">
+    <div style="font-size:15px;font-weight:700;letter-spacing:-.2px;margin-bottom:10px;">Lux Sound Lab didn't start</div>
+    <p style="color:#adaebd;font-size:13.5px;line-height:1.7;margin:0 0 14px;">This page's script file (<code style="background:#1a1c26;padding:2px 6px;border-radius:5px;">/app.js</code>) didn't run. That almost always means one of two things:</p>
+    <p style="color:#adaebd;font-size:13.5px;line-height:1.7;margin:0 0 14px;text-align:left;">
+      1. <strong style="color:#f8f8fc;">app.js is missing from this deployment.</strong> Check that it's a real file in your project, not just referenced by index.html.<br><br>
+      2. <strong style="color:#f8f8fc;">This browser is blocking it.</strong> If you opened this link from inside Snapchat, Instagram, WhatsApp, or a similar in-app browser, try opening it directly in Chrome or Safari instead.
+    </p>
+    <p style="color:#7c7e8f;font-size:12px;">Diagnostic: open <code style="background:#1a1c26;padding:2px 6px;border-radius:5px;">/app.js</code> directly in your browser's address bar. If it shows a 404 or an error page instead of code, the file isn't deployed.</p>
+  </div>
+</div>
+<script>
+  setTimeout(function () {
+    if (!document.documentElement.classList.contains('external-js-ran')) {
+      document.getElementById('jsLoadCheck').style.display = 'flex';
+    }
+  }, 3000);
+</script>
+
 <!-- =======================================================
      SVG ICON DEFINITIONS
      ======================================================= -->
@@ -81,8 +106,7 @@
      ======================================================= -->
 <div class="onboarding" id="onboarding">
   <div class="onb-card">
-    <img class="brand-mark-icon lg" src="/assets/icon-mark.png" alt="Lux Sound Lab" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23a78bfa%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d7dfb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2226%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpath%20d%3D%22M40%2032v36l28-18z%22%20fill%3D%22%230c0716%22/%3E%3C/svg%3E';">
-    <h1>Lux Sound Lab</h1>
+    <img class="brand-lockup" src="/assets/logo-full.png" alt="Lux Sound Lab" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23a78bfa%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d7dfb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2226%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpath%20d%3D%22M40%2032v36l28-18z%22%20fill%3D%22%230c0716%22/%3E%3C/svg%3E';">
     <p class="onb-tagline">Your local music, reimagined.</p>
     <div class="onb-divider"></div>
     <div class="onb-panel">
@@ -103,7 +127,7 @@
 </div>
 
 <div class="scanning" id="scanning">
-  <img class="brand-mark-icon lg" src="/assets/icon-mark.png" alt="Lux Sound Lab" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23a78bfa%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d7dfb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2226%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpath%20d%3D%22M40%2032v36l28-18z%22%20fill%3D%22%230c0716%22/%3E%3C/svg%3E';">
+  <img class="brand-lockup" src="/assets/logo-full.png" alt="Lux Sound Lab" onerror="this.onerror=null;this.src='data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23a78bfa%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d7dfb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2226%22%20fill%3D%22url%28%23g%29%22/%3E%3Cpath%20d%3D%22M40%2032v36l28-18z%22%20fill%3D%22%230c0716%22/%3E%3C/svg%3E';">
   <div class="scan-ring"><svg viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="28"/><circle class="prog" id="scanRingProg" cx="32" cy="32" r="28" stroke-dasharray="176" stroke-dashoffset="176"/></svg></div>
   <div class="scan-status" id="scanStatus">Building your library…</div>
   <div class="scan-count" id="scanCount">Scanning your music…</div>
