@@ -11,6 +11,12 @@
 (() => {
 "use strict";
 
+// Marks that the external app.js actually executed — see the inline
+// diagnostic script near the top of index.html, which shows a helpful
+// on-screen message if this class never gets added (meaning app.js
+// failed to load or crashed before reaching this line).
+document.documentElement.classList.add("external-js-ran");
+
 const $  = (sel, root=document) => root.querySelector(sel);
 const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
 
@@ -1755,10 +1761,4 @@ function applyVolume() {
   $("#volumeSlider").value = state.settings.volume;
 }
 $("#volumeSlider").addEventListener("input", e => {
-  state.settings.volume = +e.target.value;
-  if (state.settings.volume > 0) state.settings.muted = false;
-  saveSettings(); applyVolume();
-});
-$("#muteBtn").addEventListener("click", () => { state.settings.muted = !state.settings.muted; saveSettings(); applyVolume(); });
-
-/* ============================== playback speed (real: HTMLMedi
+  state.sett
