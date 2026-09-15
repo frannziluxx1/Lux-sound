@@ -128,6 +128,10 @@ a { color: inherit; text-decoration: none; }
 [data-theme="light"] .brand-mark-icon { border: 1px solid var(--border-strong); }
 .brand-mark-icon.sm { width: 26px; height: 26px; border-radius: 9px; }
 .brand-mark-icon.lg { width: 92px; height: 92px; border-radius: 28px; }
+.brand-lockup {
+  width: min(320px, 78%); height: auto; display: block; margin: 0 auto;
+  border-radius: 20px; box-shadow: 0 0 40px hsla(var(--accent-h), 90%, 55%, .3), 0 4px 16px rgba(0,0,0,.4);
+}
 .brand-mark-text strong { display: block; font-weight: 800; font-size: 17px; letter-spacing: -.3px; line-height: 1.15; color: var(--text); }
 .brand-mark-text span { display: block; color: var(--muted); font-size: 10.5px; margin-top: 2px; }
 
